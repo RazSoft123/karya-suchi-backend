@@ -25,12 +25,12 @@ const userSchema = new mongoose.Schema({
 
     defaultWorkspace: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "workspace",
+        ref: "Workspace",
         required: true,
     }
 
 }, {
-    timestamp: true
+    timestamps: true
 });
 
 const User = mongoose.model("user", userSchema);

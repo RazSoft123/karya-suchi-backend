@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { validateEmail, validateName, validatePassword } from "../utils/validations.mjs";
 import User from "./../models/User.mjs";
+import Workspace from "./../models/Workspace.mjs";
 
 // TODO: controller to authenticate user and send a JSON web token as response
 async function loginController(req, res) {
@@ -116,65 +117,119 @@ async function registerController(req, res) {
         const correctEmail = validateEmail(email);
         const validatedPassword = validatePassword(password);
 
-        const user = await User.findOne({ email: correctEmail });
-        if (user) {
+        if (!correctName) {
             return res.status(400).json({
                 status: "failed",
-                messages: "User with this email already exist",
+                messages: ["Name must contain only letters and spaces"],
                 data: {}
-            })
+            });
+        }
+
+        if (!correctEmail) {
+            return res.status(400).json({
+                status: "failed",
+                messages: ["A valid email address is required"],
+                data: {}
+            });
         }
 
         if (!validatedPassword) {
             return res.status(400).json({
                 status: "failed",
-                messages: ["Password must be between 8 and 32 chars long", "Must contain a number, a uppercase and lowercase letter and a special character"]
-            })
+                messages: ["Password must be between 8 and 32 chars long", "Must contain a number, an uppercase and lowercase letter and a special character"],
+                data: {}
+            });
         }
 
-        // If user don't exist then hash the password and store the user data.
+        const user = await User.findOne({ email: correctEmail });
+        if (user) {
+            return res.status(409).json({
+                status: "failed",
+                messages: ["User with this email already exists"],
+                data: {}
+            });
+        }
+
+        // Preallocate both ids so the required relationship is valid before either document is saved.
         const hashPass = await bcrypt.hash(password, 12);
 
-        const newUser = await User.create({
+        const newUser = new User({
             name: correctName,
             email: correctEmail,
-            password: hashPass,
+            password: hashPass
+        });
 
-        })
+        const defaultWorkspace = new Workspace({
+            name: "personal",
+            description: "Default personal workspace",
+            owner: newUser._id
+        });
 
-        // Send the new JWT token and new refresh token in as the http header cookies
-        const token = await jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_TIMEOUT });
-        const refreshToken = await jwt.sign({ id: newUser._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_TIMEOUT });
+        newUser.defaultWorkspace = defaultWorkspace._id;
+
+        const token = jwt.sign(
+            { id: newUser._id },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_TIMEOUT }
+        );
+        const refreshToken = jwt.sign(
+            { id: newUser._id },
+            process.env.JWT_REFRESH_SECRET,
+            { expiresIn: process.env.JWT_REFRESH_TIMEOUT }
+        );
 
         newUser.refreshToken = refreshToken;
-        await newUser.save();
+
+        // Validate both documents before writing and roll back the workspace if user creation fails.
+        await Promise.all([newUser.validate(), defaultWorkspace.validate()]);
+        await defaultWorkspace.save();
+
+        try {
+            await newUser.save();
+        } catch (error) {
+            await Workspace.deleteOne({ _id: defaultWorkspace._id });
+            throw error;
+        }
 
         res.cookie("accessToken", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV == 'prod' ? true : false,
+            secure: process.env.NODE_ENV === "production",
             sameSite: 'strict',
             maxAge: 15 * 60 * 1000
         })
 
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV == 'prod' ? true : false,
+            secure: process.env.NODE_ENV === "production",
             sameSite: 'strict',
             maxAge: 7 * 24 * 60 * 60 * 1000
         })
 
         return res.status(201).json({
             status: "success",
-            messages: "User registration successful",
+            messages: ["User registration successful"],
             data: {
-                _id: newUser._id,
+                id: newUser._id,
                 name: newUser.name,
-                email: newUser.email
+                email: newUser.email,
+                defaultWorkspace: {
+                    id: defaultWorkspace._id,
+                    name: defaultWorkspace.name
+                }
             }
         });
 
     } catch (err) {
         console.log("ERROR: registering user \n", err);
+
+        if (err?.code === 11000) {
+            return res.status(409).json({
+                status: "failed",
+                messages: ["User with this email already exists"],
+                data: {}
+            });
+        }
+
         return res.status(500).json({
             status: "failed",
             messages: ["Internal server error"],
