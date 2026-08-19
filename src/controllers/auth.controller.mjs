@@ -5,7 +5,7 @@ import { validateEmail, validateName, validatePassword } from "../utils/validati
 import User from "./../models/User.mjs";
 import Workspace from "./../models/Workspace.mjs";
 
-// TODO: controller to authenticate user and send a JSON web token as response
+// controller to authenticate user and send a JSON web token as response
 async function loginController(req, res) {
     try {
         const { email, password } = req.body;
@@ -72,7 +72,7 @@ async function loginController(req, res) {
     }
 }
 
-// TODO: controller to implement the logout of the user
+// controller to implement the logout of the user
 async function logoutController(req, res) {
     try {
         const refreshToken = req.cookies?.refreshToken;
@@ -108,7 +108,7 @@ async function logoutController(req, res) {
     }
 }
 
-// TODO: controller to register a user and send the JWT token as response
+// controller to register a user and send the JWT token as response
 async function registerController(req, res) {
     try {
         const { email, name, password } = req.body;
@@ -238,7 +238,7 @@ async function registerController(req, res) {
     }
 }
 
-// TODO: controller for generating new refresh token evry time the JWT expires
+// controller for generating new refresh token evry time the JWT expires
 async function refreshController(req, res) {
     try {
         const refreshToken = req.cookies?.refreshToken;
