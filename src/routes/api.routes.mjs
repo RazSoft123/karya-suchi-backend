@@ -3,6 +3,7 @@ import { userRoutes } from "./user.routes.mjs";
 import { authRoutes } from "./auth.routes.mjs";
 import { workspaceRoutes } from "./workspace.routes.mjs";
 import { noteRoutes } from "./note.routes.mjs";
+import { taskRoutes } from "./task.routes.mjs";
 
 const apiRoutes = Router();
 
@@ -10,5 +11,6 @@ apiRoutes.use(authRoutes);
 apiRoutes.use(userRoutes);
 apiRoutes.use(workspaceRoutes);
 apiRoutes.use(noteRoutes);
+apiRoutes.use(taskRoutes);
 
 export { apiRoutes }
