@@ -8,7 +8,7 @@ const workspaceMemberSchema = mongoose.Schema({
         required: true
     },
 
-    memeber: {
+    member: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
@@ -16,16 +16,20 @@ const workspaceMemberSchema = mongoose.Schema({
 
     role: {
         type: String,
-        enum: ["owner", "admin", "memeber"]
+        enum: ["owner", "admin", "member"],
+        default: "member"
     },
 
     access: {
         type: String,
-        enum: ["view", "comment", "edit"]
+        enum: ["view", "comment", "edit"],
+        default: "edit"
     }
 }, {
     timestamps: true
 })
+
+workspaceMemberSchema.index({ workspace: 1, member: 1 }, { unique: true });
 
 const WorkspaceMember = mongoose.model("WorkspaceMember", workspaceMemberSchema);
 

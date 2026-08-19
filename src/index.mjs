@@ -11,7 +11,10 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors(process.env.CROSS_ORIGIN));
+app.use(cors({
+    origin: process.env.CROSS_ORIGIN,
+    credentials: true
+}));
 app.use(morgan('dev'));
 
 // Basic routes
@@ -27,7 +30,7 @@ app.use("/api/v1", apiRoutes);
 
 // Send a 404 response for default route
 app.get("/", (req, res) => {
-    res.status(200).json({
+    res.status(404).json({
         status: "failed",
         message: "route not defiend"
     })

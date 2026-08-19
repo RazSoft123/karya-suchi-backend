@@ -17,6 +17,13 @@ async function authUser(req, res, next) {
         try {
             let payload = await jwt.verify(jwtToken, process.env.JWT_SECRET)
             let user = await User.findById(payload.id);
+            if (!user) {
+                return res.status(401).json({
+                    status: "failed",
+                    data: {},
+                    message: "Authenticated user no longer exists"
+                });
+            }
             req.user = user;
             return next();
 
@@ -50,11 +57,19 @@ async function authUser(req, res, next) {
                     })
                 }
 
-                const newJwtToken = generateAccessToken(user._id);
-                const newRefreshToken = generateRefreshToken(user._id);
+                if (user.refreshToken !== refreshToken) {
+                    return res.status(401).json({
+                        status: "failed",
+                        data: {},
+                        message: "Refresh token does not match the active session"
+                    });
+                }
+
+                const newJwtToken = generateAccessToken({ id: user._id });
+                const newRefreshToken = generateRefreshToken({ id: user._id });
 
                 user.refreshToken = newRefreshToken;
-                user.save();
+                await user.save();
 
                 setNewTokens(res, newJwtToken, newRefreshToken);
 

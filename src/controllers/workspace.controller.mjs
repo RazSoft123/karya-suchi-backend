@@ -5,12 +5,19 @@ import WorkspaceMember from "../models/WorkspaceMember.mjs";
 async function getAllWorkspaces(req, res) {
     const user = req.user;
 
+    const memberWorkspaceIds = await WorkspaceMember.find({
+        member: user._id
+    }).distinct("workspace");
+
     const workspaces = await Workspace.find({
-        owner: user._id,
-        isDeleted: false
+        isDeleted: false,
+        $or: [
+            { owner: user._id },
+            { _id: { $in: memberWorkspaceIds } }
+        ]
     });
 
-    if (!workspaces.length === 0) {
+    if (workspaces.length === 0) {
         return res.status(200).json({
             status: "success",
             data: [],
