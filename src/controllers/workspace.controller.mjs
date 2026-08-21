@@ -1,6 +1,8 @@
 import { z } from "zod";
 import Workspace from "../models/Workspace.mjs";
 import WorkspaceMember from "../models/WorkspaceMember.mjs";
+import Task from "../models/Tasks.mjs";
+import Note from "../models/Notes.mjs";
 
 const objectIdSchema = z.string().regex(/^[a-f\d]{24}$/i, "Invalid workspace id");
 const workspaceFields = {
@@ -30,7 +32,7 @@ function validationMessages(result) {
     return result.error.issues.map((issue) => issue.message);
 }
 
-function serializeWorkspace(workspace, user, membership = null) {
+function serializeWorkspace(workspace, user, membership = null, counts = {}) {
     const value = workspace.toObject();
     const isOwner = workspace.owner.equals(user._id);
     const canManage = isOwner || membership?.role === "owner" || membership?.role === "admin";
@@ -45,8 +47,55 @@ function serializeWorkspace(workspace, user, membership = null) {
         canManage,
         canEdit,
         isDefault: Boolean(user.defaultWorkspace?.equals(value._id)),
+        openTaskCount: counts.openTaskCount ?? 0,
+        noteCount: counts.noteCount ?? 0,
         createdAt: value.createdAt,
         updatedAt: value.updatedAt
+    };
+}
+
+async function getWorkspaceCountMaps(workspaceIds) {
+    if (workspaceIds.length === 0) {
+        return { openTasks: new Map(), notes: new Map() };
+    }
+
+    const [taskCounts, noteCounts] = await Promise.all([
+        Task.aggregate([
+            {
+                $match: {
+                    workspace: { $in: workspaceIds },
+                    isDeleted: false,
+                    status: { $in: ["todo", "in_progress"] }
+                }
+            },
+            { $group: { _id: "$workspace", count: { $sum: 1 } } }
+        ]),
+        Note.aggregate([
+            {
+                $match: {
+                    workspace: { $in: workspaceIds },
+                    isDeleted: false
+                }
+            },
+            { $group: { _id: "$workspace", count: { $sum: 1 } } }
+        ])
+    ]);
+
+    return {
+        openTasks: new Map(
+            taskCounts.map((entry) => [entry._id.toString(), entry.count])
+        ),
+        notes: new Map(
+            noteCounts.map((entry) => [entry._id.toString(), entry.count])
+        )
+    };
+}
+
+function countsForWorkspace(countMaps, workspaceId) {
+    const key = workspaceId.toString();
+    return {
+        openTaskCount: countMaps.openTasks.get(key) ?? 0,
+        noteCount: countMaps.notes.get(key) ?? 0
     };
 }
 
@@ -90,13 +139,17 @@ async function getAllWorkspaces(req, res) {
                 { _id: { $in: memberships.map((membership) => membership.workspace) } }
             ]
         }).sort({ updatedAt: -1 });
+        const countMaps = await getWorkspaceCountMaps(
+            workspaces.map((workspace) => workspace._id)
+        );
 
         return res.status(200).json({
             status: "success",
             data: workspaces.map((workspace) => serializeWorkspace(
                 workspace,
                 req.user,
-                membershipByWorkspace.get(workspace._id.toString())
+                membershipByWorkspace.get(workspace._id.toString()),
+                countsForWorkspace(countMaps, workspace._id)
             )),
             messages: ["Workspaces fetched successfully"]
         });
@@ -118,9 +171,16 @@ async function getWorkspace(req, res) {
             return sendFailure(res, access.error.status, access.error.message);
         }
 
+        const countMaps = await getWorkspaceCountMaps([access.workspace._id]);
+
         return res.status(200).json({
             status: "success",
-            data: serializeWorkspace(access.workspace, req.user, access.membership),
+            data: serializeWorkspace(
+                access.workspace,
+                req.user,
+                access.membership,
+                countsForWorkspace(countMaps, access.workspace._id)
+            ),
             messages: ["Workspace fetched successfully"]
         });
     } catch (error) {
@@ -179,10 +239,16 @@ async function updateWorkspace(req, res) {
         if (parsedBody.data.name !== undefined) access.workspace.name = parsedBody.data.name;
         if (parsedBody.data.description !== undefined) access.workspace.description = parsedBody.data.description;
         await access.workspace.save();
+        const countMaps = await getWorkspaceCountMaps([access.workspace._id]);
 
         return res.status(200).json({
             status: "success",
-            data: serializeWorkspace(access.workspace, req.user, access.membership),
+            data: serializeWorkspace(
+                access.workspace,
+                req.user,
+                access.membership,
+                countsForWorkspace(countMaps, access.workspace._id)
+            ),
             messages: ["Workspace updated successfully"]
         });
     } catch (error) {
