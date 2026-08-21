@@ -76,28 +76,22 @@ async function loginController(req, res) {
 async function logoutController(req, res) {
     try {
         const refreshToken = req.cookies?.refreshToken;
-        const result = await jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
         res.clearCookie('accessToken');
         res.clearCookie('refreshToken');
 
-        if (!result) {
-            return res.status(400).json({
-                status: "failed",
-                data: {},
-                messages: ["Can't varify the token "]
-            })
+        if (refreshToken) {
+            try {
+                const result = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+                await User.updateOne(
+                    { _id: result.id, refreshToken },
+                    { $set: { refreshToken: null } }
+                );
+            } catch {
+                // Cookies are cleared even when the session has already expired.
+            }
         }
 
-        const user = await User.findById(result.id);
-        user.refreshToken = null;
-        await user.save();
-
-        return res.status(204).json({
-            status: "success",
-            data: {},
-            messages: ["Logout successful"]
-        })
+        return res.sendStatus(204);
     } catch (err) {
         console.log("ERROR: JWT not varified ", err);
         return res.status(500).json({
