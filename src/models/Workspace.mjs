@@ -5,14 +5,15 @@ const workspaceSchema = mongoose.Schema({
         type: String,
         required: true,
         trim: true,
-        min: 3,
-        max: 255
+        minlength: 3,
+        maxlength: 100
     },
 
     description: {
         type: String,
         default: "",
-        trim: true
+        trim: true,
+        maxlength: 2000
     },
 
     owner: {
@@ -31,6 +32,8 @@ const workspaceSchema = mongoose.Schema({
 }, {
     timestamps: true
 });
+
+workspaceSchema.index({ owner: 1, isDeleted: 1 });
 
 const Workspace = mongoose.model('Workspace', workspaceSchema);
 

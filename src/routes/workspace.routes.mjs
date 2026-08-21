@@ -4,12 +4,17 @@ import { getAllWorkspaces, getWorkspace, createWorkspace, updateWorkspace, delet
 
 const workspaceRoutes = Router();
 
-workspaceRoutes.get('/workspaces', authUser, getAllWorkspaces);
-workspaceRoutes.get('/workspaces/:id', authUser, getWorkspace);
+workspaceRoutes.use(authUser);
 
-workspaceRoutes.post('/workspace', authUser, createWorkspace);
-workspaceRoutes.put('/workspace/:id', authUser, updateWorkspace);
-workspaceRoutes.delete('/workspace/:id', authUser, deleteWorkspace);
+workspaceRoutes.get('/workspaces', getAllWorkspaces);
+workspaceRoutes.post('/workspaces', createWorkspace);
+workspaceRoutes.get('/workspaces/:id', getWorkspace);
+workspaceRoutes.patch('/workspaces/:id', updateWorkspace);
+workspaceRoutes.delete('/workspaces/:id', deleteWorkspace);
 
+// Backward-compatible aliases for clients using the original singular routes.
+workspaceRoutes.post('/workspace', createWorkspace);
+workspaceRoutes.put('/workspace/:id', updateWorkspace);
+workspaceRoutes.delete('/workspace/:id', deleteWorkspace);
 
 export { workspaceRoutes }
