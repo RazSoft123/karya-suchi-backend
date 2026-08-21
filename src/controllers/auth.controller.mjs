@@ -4,6 +4,13 @@ import bcrypt from "bcrypt";
 import { validateEmail, validateName, validatePassword } from "../utils/validations.mjs";
 import User from "./../models/User.mjs";
 import Workspace from "./../models/Workspace.mjs";
+import {
+    clearTokens,
+    generateAccessToken,
+    generateRefreshToken,
+    setAccessToken,
+    setNewTokens
+} from "../utils/tokens.mjs";
 
 // controller to authenticate user and send a JSON web token as response
 async function loginController(req, res) {
@@ -32,25 +39,13 @@ async function loginController(req, res) {
         }
 
         // Create a JWT token and refresh token and 
-        const token = await jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_TIMEOUT });
-        const refreshToken = await jwt.sign({ id: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_TIMEOUT });
+        const token = generateAccessToken({ id: user._id });
+        const refreshToken = generateRefreshToken({ id: user._id });
 
         user.refreshToken = refreshToken;
         await user.save();
 
-        res.cookie("accessToken", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV == 'prod' ? true : false,
-            sameSite: 'strict',
-            maxAge: 15 * 60 * 1000
-        })
-
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV == 'prod' ? true : false,
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        })
+        setNewTokens(res, token, refreshToken);
 
         return res.status(200).json({
             status: "success",
@@ -76,8 +71,7 @@ async function loginController(req, res) {
 async function logoutController(req, res) {
     try {
         const refreshToken = req.cookies?.refreshToken;
-        res.clearCookie('accessToken');
-        res.clearCookie('refreshToken');
+        clearTokens(res);
 
         if (refreshToken) {
             try {
@@ -161,16 +155,8 @@ async function registerController(req, res) {
 
         newUser.defaultWorkspace = defaultWorkspace._id;
 
-        const token = jwt.sign(
-            { id: newUser._id },
-            process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_TIMEOUT }
-        );
-        const refreshToken = jwt.sign(
-            { id: newUser._id },
-            process.env.JWT_REFRESH_SECRET,
-            { expiresIn: process.env.JWT_REFRESH_TIMEOUT }
-        );
+        const token = generateAccessToken({ id: newUser._id });
+        const refreshToken = generateRefreshToken({ id: newUser._id });
 
         newUser.refreshToken = refreshToken;
 
@@ -185,19 +171,7 @@ async function registerController(req, res) {
             throw error;
         }
 
-        res.cookie("accessToken", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: 'strict',
-            maxAge: 15 * 60 * 1000
-        })
-
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        })
+        setNewTokens(res, token, refreshToken);
 
         return res.status(201).json({
             status: "success",
@@ -275,34 +249,8 @@ async function refreshController(req, res) {
             });
         }
 
-        const newAccessToken = jwt.sign(
-            { id: user._id },
-            process.env.JWT_SECRET,
-            { expiresIn: "15m" }
-        );
-
-        const newRefreshToken = jwt.sign(
-            { id: user._id },
-            process.env.JWT_REFRESH_SECRET,
-            { expiresIn: "7d" }
-        );
-
-        user.refreshToken = newRefreshToken;
-        await user.save();
-
-        res.cookie("accessToken", newAccessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-            maxAge: 15 * 60 * 1000
-        });
-
-        res.cookie("refreshToken", newRefreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+        const newAccessToken = generateAccessToken({ id: user._id });
+        setAccessToken(res, newAccessToken);
 
         return res.status(200).json({
             status: "success",

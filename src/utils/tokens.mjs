@@ -1,6 +1,22 @@
 // Utility function to generate the new JWT Token and Refresh Token
 import jwt from "jsonwebtoken";
 
+function cookieOptions() {
+    return {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production" || process.env.NODE_ENV === "prod",
+        sameSite: "strict"
+    };
+}
+
+function accessTokenMaxAge() {
+    return Number(process.env.ACCESS_TOKEN_MAX_AGE) || 15 * 60 * 1000;
+}
+
+function refreshTokenMaxAge() {
+    return Number(process.env.REFRESH_TOKEN_MAX_AGE) || 7 * 24 * 60 * 60 * 1000;
+}
+
 // add system to generate new access token
 function generateAccessToken(payload) {
 
@@ -19,26 +35,31 @@ function generateRefreshToken(payload) {
 
 // add system to new token in response object http only cookies
 function setNewTokens(res, jwtToken, refreshToken) {
-
-    const baseCookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production' ? true : false,
-        sameSite: 'strict'
-    }
-
-    res.cookie("accessToken", jwtToken, {
-        ...baseCookieOptions,
-        maxAge: process.env.ACCESS_TOKEN_MAX_AGE
-    })
+    setAccessToken(res, jwtToken);
 
     res.cookie("refreshToken", refreshToken, {
-        ...baseCookieOptions,
-        maxAge: process.env.REFRESH_TOKEN_MAX_AGE
-    })
+        ...cookieOptions(),
+        maxAge: refreshTokenMaxAge()
+    });
+}
+
+function setAccessToken(res, jwtToken) {
+    res.cookie("accessToken", jwtToken, {
+        ...cookieOptions(),
+        maxAge: accessTokenMaxAge()
+    });
+}
+
+function clearTokens(res) {
+    const options = cookieOptions();
+    res.clearCookie("accessToken", options);
+    res.clearCookie("refreshToken", options);
 }
 
 export {
     generateAccessToken,
     generateRefreshToken,
-    setNewTokens
+    setNewTokens,
+    setAccessToken,
+    clearTokens
 }

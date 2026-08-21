@@ -1,9 +1,13 @@
 function getUser(req, res) {
-
-    return res.json({
+    return res.status(200).json({
         status: "success",
-        message: "User data will show soon"
-    })
+        data: {
+            id: req.user._id,
+            name: req.user.name,
+            email: req.user.email
+        },
+        messages: ["User fetched successfully"]
+    });
 
 }
 
